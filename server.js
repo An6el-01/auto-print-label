@@ -16,26 +16,31 @@ app.post('/print', async (req, res) => {
         return res.status(400).json({ error: 'No PDF data received'});
     }
 
-    const tempDir = os.tmpdir();
-    const tempPath = path.join(tempDir, `cloudcut-label-${Date.now()}.pdf`);
+    // NEW CODE
+    try {
+        // Make sure we are working with a Buffer
+        const pdfBuffer = Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body);
 
-    try {    
-        //SEND TO WINDOWS PRINTER
-        await fs.writeFile(tempPath, req.body);
-        await print(tempPath, { silent: true });
-        await fs.unlink(tempPath).catch(() => {});
+        // Ensure the received-pdfs directory exists
+        await fs.mkdir(RECIEVED_PDFS_DIR, { recursive: true });
 
-        //SAVE TO RECIEVED_PDFS_DIR
-        // await fs.mkdir(RECIEVED_PDFS_DIR, { recursive: true });
-        // const savePath = path.join(RECIEVED_PDFS_DIR, `cloudcut-label-${Date.now()}.pdf`);
-        // await fs.writeFile(savePath, req.body);
-        // console.log(`[Print Helper] Saved PDF to ${savePath}`);
+        // Save incoming PDF to a stable, inspectable location
+        const savePath = path.join(RECIEVED_PDFS_DIR, `cloudcut-label-${Date.now()}.pdf`);
+        await fs.writeFile(savePath, pdfBuffer);
+        console.log(`[Print Helper] Saved PDF to ${savePath} (size: ${pdfBuffer.length} bytes)`);
+
+        // Send the saved file to the printer
+        await print(savePath, { silent: true });
+
+        // If you want to delete after printing, uncomment this:
+        // await fs.unlink(savePath).catch(() => {});
+        // END NEW CODE
 
         res.json({ success: true });
-      } catch (err) {
+    } catch (err) {
         console.error('[Print Helper] Print failed:', err);
         res.status(500).json({ error: err.message || 'Print failed' });
-      }
+    }
 });
 
 app.get('/status', async (req, res) => {
