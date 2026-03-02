@@ -1,12 +1,13 @@
 import express from 'express';
 import pkg from 'pdf-to-printer';
 const { print, getDefaultPrinter } = pkg;
-import fs from 'fs';
+import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 
 const app = express();
 const PORT = process.env.PRINT_HELPER_PORT || 3929;
+const RECIEVED_PDFS_DIR = path.join(process.cwd(), 'recieved-pdfs');
 
 app.use(express.raw({ type: 'application/pdf', limit: '50mb' }));
 
@@ -18,13 +19,20 @@ app.post('/print', async (req, res) => {
     const tempDir = os.tmpdir();
     const tempPath = path.join(tempDir, `cloudcut-label-${Date.now()}.pdf`);
 
-    try {
+    try {    
+        //SEND TO WINDOWS PRINTER
         await fs.writeFile(tempPath, req.body);
         await print(tempPath, { silent: true });
         await fs.unlink(tempPath).catch(() => {});
+
+        //SAVE TO RECIEVED_PDFS_DIR
+        // await fs.mkdir(RECIEVED_PDFS_DIR, { recursive: true });
+        // const savePath = path.join(RECIEVED_PDFS_DIR, `cloudcut-label-${Date.now()}.pdf`);
+        // await fs.writeFile(savePath, req.body);
+        // console.log(`[Print Helper] Saved PDF to ${savePath}`);
+
         res.json({ success: true });
       } catch (err) {
-        await fs.unlink(tempPath).catch(() => {});
         console.error('[Print Helper] Print failed:', err);
         res.status(500).json({ error: err.message || 'Print failed' });
       }
